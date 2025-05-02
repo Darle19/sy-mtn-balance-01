@@ -4,9 +4,9 @@ return [
   'database' => [
     'host'     => 'localhost',
     'port'     => 3306,
-    'name'     => 'subscription_db',
-    'user'     => 'dbuser',
-    'pass'     => '',
+    'name'     => 'FBII',
+    'user'     => 'ivr_user_db',
+    'pass'     => '8S339ns0GbCz8o8X',
   ],
   'report'   => [
     'dir'      => 'reports/',
