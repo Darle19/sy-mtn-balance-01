@@ -98,7 +98,7 @@ class ReportModule
         }
     
         // тема и тело
-        $date           = $this->getReportPaths()['date'];
+        $date = (new \DateTime('yesterday'))->format($this->config['report']['date_fmt']);
         $mail->Subject  = str_replace('{date}', $date, $email['subject_tpl']);
         $mail->Body     = str_replace('{date}', $date, $email['body_tpl']);
         $mail->addAttachment($file);
@@ -137,7 +137,7 @@ class ReportModule
             // 08:00 – отправка отчёта
             $this->sendEmail($paths['output']);
 
-        } elseif ($hour < 23) {
+        } elseif ($hour <= 23) {
             // 23:30 – итоговые метрики по ключам
             $keys = [
                 'new_trial', 'new_paid', 'trial_to_paid',
