@@ -20,12 +20,12 @@ return [
     SELECT
     (SELECT COUNT(*) FROM FB_subscriptions
         WHERE status IN (0,8)
-        AND DATE(start_date) = :date
+        AND DATE(start_date) = CURDATE()
     )
     +
     (SELECT COUNT(*) FROM FB_subscriptions_archive
         WHERE status IN (0,8)
-        AND DATE(start_date) = :date
+        AND DATE(start_date) = CURDATE()
     );
   ",
     // Сбор информации в 23:30. Подсчет кол-ва Новых подписок, что подписались на платную подписку в рамках текущего дня. Данные собираем из таблицы FB_subscriptions и FB_subscriptions_archive
@@ -33,19 +33,21 @@ return [
     SELECT
         (SELECT COUNT(*) FROM FB_subscriptions
         WHERE status IN (1,3,5,6)
-        AND DATE(start_date) = :date
+        AND DATE(start_date) = CURDATE()
     )
     +
         (SELECT COUNT(*) FROM FB_subscriptions_archive
         WHERE status IN (1,3,5,6)
-        AND DATE(start_date) = :date);
+        AND DATE(start_date) = CURDATE());
   ",
     //Подсчёт кол-ва переведенных с триала в платную • current status (в FB_subscriptions) status IN (1,3,5,6) но в начале дня status был IN (0,8)
     'trial_to_paid' => "
-    SELECT COUNT (*) 
-    FROM FB_subscriptions
-    WHERE status IN (1, 3, 5, 6) 
-    AND previous_status(0,8);
+    SELECT
+  COUNT(*) AS cnt
+FROM FB_subscriptions
+WHERE status IN (1, 3, 5, 6)
+  AND previous_status IN (0, 8)
+  AND DATE(start_date) = :date
     ",
     //Сбор информации в 23:30. Подсчет кол-ва подписок в триале из таблицы FB_subscriptions на конец дня
     'active_trial_last_day' => "
@@ -91,7 +93,7 @@ return [
     FROM FB_subscriptions_archive
     WHERE `status` IN (2, 4)
     AND previous_status IN (0, 8)
-    AND DATE(last_charge_date) = :date;
+    AND DATE(last_charge_date) = CURDATE();
     ",
     //Кол-во отписок за текущий день, таблица FB_subscritions_archive, статус подписки = '2' предыдущий статус status IN (1,3,5,6)
     'unsubscribe_paid' => "
@@ -99,12 +101,12 @@ return [
     FROM FB_subscriptions_archive
     WHERE `status` IN (2, 4)
     AND previous_status IN (1, 3, 5, 6)
-    AND DATE(last_charge_date) = :date;
+    AND DATE(last_charge_date) = CURDATE();
     ",
     //from 'billing_success_log' sum( fee ) за текущий день 
     'billing_success_sum' => "
     SELECT SUM( fee ) 
     FROM billing_success_log 
-    WHERE DATE( date_time ) = :date;
+    WHERE DATE( date_time ) = CURDATE();
     "
 ];
