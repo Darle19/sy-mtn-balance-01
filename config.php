@@ -2,7 +2,7 @@
 // config.php
 return [
   'database' => [
-    'host'     => 'localhost',
+    'host'     => '127.0.0.1',
     'port'     => 3306,
     'name'     => 'FBII',
     'user'     => 'ivr_user_db',
@@ -15,10 +15,10 @@ return [
   ],
   'email'    => [
     'enabled'    => true,
-    'smtp_host'  => 'smtp.example.com',
-    'smtp_port'  => 587,
     'use_ssl'    => true,
-    'from'       => 'reports@example.com',
+    'host'       => '10.11.200.212',
+    'port'       => 25,
+    'from'       => 'sy-mtn-balance@mtn.com',
     'to'         => ['ivr@unifun.com','f.saydaliev@unifun.com'],
     'subject_tpl'=> 'TEST!!! FB Subscription Report - {date}',
     'body_tpl'   => 'Please find the attached FB Subscription Report for {date}.',

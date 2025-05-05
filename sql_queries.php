@@ -5,15 +5,13 @@ return [
     'active_trial' => "
     SELECT COUNT(*) 
     FROM FB_subscriptions
-    WHERE status IN (0, 8)
-        AND trial_stop_date > NOW();
+    WHERE status IN (0, 8);
   ",
     //Сбор информации в 00:30. Подсчет кол-ва платный подписок из таблицы FB_subscriptions 
     'active_paid' => "
         SELECT COUNT(*)
         FROM FB_subscriptions
-        WHERE status IN (1, 3, 5, 6)
-            AND trial_stop_date > NOW();
+        WHERE status IN (1, 3, 5, 6);
     ",
     // Сбор информации в 23:30. Подсчет кол-ва Новых подписок, что подписались на триал в рамках текущего дня. Данные собираем из таблицы FB_subscriptions и FB_subscriptions_archive
     'new_trial' => "
@@ -54,7 +52,7 @@ WHERE status IN (1, 3, 5, 6)
       SELECT COUNT(*)
       FROM FB_subscriptions
       WHERE status IN (0, 8)
-      AND trial_stop_date > NOW();
+      AND trial_stop_date > CURDATE();
     ",
     //Сбор информации в 23:30. Подсчет кол-ва платный подписок из таблицы FB_subscriptions на конец дня
     'active_paid_last_day' => "

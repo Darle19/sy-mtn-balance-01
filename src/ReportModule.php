@@ -30,8 +30,21 @@ class ReportModule
         ]);
     }
 
-    private function getReportPaths(): array
+    private function getReportPaths(bool $report): array
     {
+        if ($report) {
+            $r = $this->config['report'];
+            $date = (new \DateTime('yesterday'))->format($this->config['report']['date_fmt']);
+            $outputDir = rtrim($r['dir'], '/') . '/';
+            $fileFmt   = $r['format'];
+            $filename  = "report_{$date}.{$fileFmt}";
+            return [
+                'template' => __DIR__ . '/../template.xlsx',
+                'output'   => __DIR__ . '/../report.xlsx',
+                'date'     => date('Y-m-d'),
+            ];
+            
+        }else{
         $r = $this->config['report'];
         $date      = date($r['date_fmt']);
         $outputDir = rtrim($r['dir'], '/') . '/';
@@ -43,6 +56,7 @@ class ReportModule
             'output'   => __DIR__ . '/../' . $outputDir . $filename,
             'date'     => $date,
         ];
+    }
     }
 
     private function ensureReportFile(string $template, string $output): void
@@ -79,6 +93,7 @@ class ReportModule
 
     private function sendEmail(string $file): void
     {
+        
         $email = $this->config['email'];
         if (!filter_var($email['enabled'], FILTER_VALIDATE_BOOLEAN)) {
             return;
@@ -87,8 +102,10 @@ class ReportModule
         $mail = new PHPMailer(true);
     
         // переключаем режим на Sendmail
-        $mail->isSendmail();
-    
+        $mail->isSMTP();
+        $mail->Host       = $email['host'];
+        $mail->Port       = $email['port'];
+        $mail->SMTPAuth   = false; // без логина/пароля
         // от кого
         $mail->setFrom($email['from']);
     
@@ -114,7 +131,7 @@ class ReportModule
 
     public function run(): void
     {
-        $paths      = $this->getReportPaths();
+        $paths      = $this->getReportPaths(false);
         $this->ensureReportFile($paths['template'], $paths['output']);
 
         $spreadsheet = $this->loadSpreadsheet($paths['output']);
@@ -135,10 +152,12 @@ class ReportModule
 
         } elseif ($hour < 9) {
             // 08:00 – отправка отчёта
+            $paths = $this->getReportPaths(true);
             $this->sendEmail($paths['output']);
 
         } elseif ($hour <= 23) {
             // 23:30 – итоговые метрики по ключам
+            
             $keys = [
                 'new_trial', 'new_paid', 'trial_to_paid',
                 'active_trial_last_day', 'active_paid_last_day',
@@ -153,7 +172,6 @@ class ReportModule
                 $sheet->setCellValue("{$col}3", $val);
                 $col++;
             }
-            $this->sendEmail($paths['output']);
         }
 
         $this->saveSpreadsheet($spreadsheet, $paths['output']);
