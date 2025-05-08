@@ -30,33 +30,19 @@ class ReportModule
         ]);
     }
 
-    private function getReportPaths(bool $report): array
+    private function getReportPaths(bool $forYesterday = false): array
     {
-        if ($report) {
-            $r = $this->config['report'];
-            $date = (new \DateTime('yesterday'))->format($this->config['report']['date_fmt']);
-            $outputDir = rtrim($r['dir'], '/') . '/';
-            $fileFmt   = $r['format'];
-            $filename  = "report_{$date}.{$fileFmt}";
-            return [
-                'template' => __DIR__ . '/../template.xlsx',
-                'output'   => __DIR__ . '/../report.xlsx',
-                'date'     => date('Y-m-d'),
-            ];
-            
-        }else{
-        $r = $this->config['report'];
-        $date      = date($r['date_fmt']);
-        $outputDir = rtrim($r['dir'], '/') . '/';
-        $fileFmt   = $r['format'];
-        $filename  = "report_{$date}.{$fileFmt}";
+        $r      = $this->config['report'];
+        $date   = $forYesterday
+            ? (new \DateTime('yesterday'))->format($r['date_fmt'])
+            : date($r['date_fmt']);
 
-        return [
+        $file   = "report_{$date}.{$r['format']}";
+        return [    
             'template' => __DIR__ . '/../template.xlsx',
-            'output'   => __DIR__ . '/../' . $outputDir . $filename,
+            'output'   => __DIR__ . '/../' . rtrim($r['dir'], '/') . '/' . $file,
             'date'     => $date,
         ];
-    }
     }
 
     private function ensureReportFile(string $template, string $output): void
@@ -79,7 +65,68 @@ class ReportModule
         $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
         $writer->save($file);
     }
+    private function upsertReport(array $data, bool $isMorning): void
+    {
+        $fieldsMorning = ['morning_trial','morning_paid'];
+        $fieldsEvening = [
+            'new_trial','new_paid','trial_to_paid','active_trial','active_paid',
+            'bill_150','bill_100','bill_50','bill_fail','unsub_trial','unsub_paid','total_fee'
+        ];
+        $cols = $isMorning ? $fieldsMorning : $fieldsEvening;
+    
+        // формируем список colon-placeholders (:morning_trial и т.д.)
+        $set = [];
+        foreach ($cols as $c) { $set[] = "$c = :$c"; }
+    
+        $sql = "
+          INSERT INTO FB_subscriptions_report_new (report_dt, service_key, ".implode(',', $cols).")
+          VALUES (:dt, :sk, ".implode(',', array_map(fn($c)=>":$c", $cols)).")
+          ON DUPLICATE KEY UPDATE ".implode(',', $set);
+    
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($data + [
+            ':dt' => date('Y-m-d 00:00:00'),
+            ':sk' => $this->config['service_key'],
+        ]);
+    }
+    private function sendLast30(): void
+    {
+        $rows = $this->pdo->query("
+            SELECT * FROM FB_subscriptions_report_new
+            ORDER BY id DESC
+            LIMIT 30
+        ")->fetchAll();
 
+        // загружаем шаблон
+        $paths = $this->getReportPaths(true);              // вчерашнее имя файла
+        $this->ensureReportFile($paths['template'], $paths['output']);
+        $sheet = $this->loadSpreadsheet($paths['output'])->getActiveSheet();
+
+        $start = 3;                                        // с 3-ей строчки
+        foreach ($rows as $i => $r) {
+            $row = $start + $i;
+            $sheet->setCellValue("A$row", $r['report_dt']);
+            $sheet->setCellValue("B$row", $r['service_key']);
+            $sheet->setCellValue("C$row", $r['morning_trial']);
+            $sheet->setCellValue("D$row", $r['morning_paid']);
+            $sheet->setCellValue("E$row", $r['morning_trial'] + $r['morning_paid']);
+            $sheet->setCellValue("F$row", $r['new_trial']);
+            $sheet->setCellValue("G$row", $r['new_paid']);
+            $sheet->setCellValue("H$row", $r['new_trial'] + $r['new_paid']);
+            $sheet->setCellValue("I$row", $r['trial_to_paid']);
+            $sheet->setCellValue("J$row", $r['active_trial']);
+            $sheet->setCellValue("K$row", $r['active_paid']);
+            $sheet->setCellValue("L$row",$r['bill_150']);
+            $sheet->setCellValue("M$row",$r['bill_100']);
+            $sheet->setCellValue("N$row",$r['bill_50']);
+            $sheet->setCellValue("O$row",$r['bill_fail']);
+            $sheet->setCellValue("P$row",$r['unsub_trial']);
+            $sheet->setCellValue("Q$row",$r['unsub_paid']);
+            $sheet->setCellValue("R$row",$r['total_fee']);
+        }
+        $this->saveSpreadsheet($sheet->getParent(), $paths['output']);
+        $this->sendEmail($paths['output']);
+    }
     private function querySingle(string $key, string $date): int
     {
         $queries = require __DIR__ . '/../sql_queries.php';
@@ -90,7 +137,11 @@ class ReportModule
         $val = $stmt->fetchColumn();
         return $val === null ? 0 : (int)$val;
     }
-
+    protected function currentHour(): int
+    {
+        // по умолчанию – реальное время сервера
+        return (int) (new \DateTime())->format('H');
+    }
     private function sendEmail(string $file): void
     {
         
@@ -105,7 +156,7 @@ class ReportModule
         $mail->isSMTP();
         $mail->Host       = $email['host'];
         $mail->Port       = $email['port'];
-        $mail->SMTPAuth   = false; // без логина/пароля
+        $mail->SMTPAuth   = false; // без логина/пароляф
         // от кого
         $mail->setFrom($email['from']);
     
@@ -130,50 +181,37 @@ class ReportModule
     
 
     public function run(): void
-    {
-        $paths      = $this->getReportPaths(false);
-        $this->ensureReportFile($paths['template'], $paths['output']);
+{
+    $hour = $this->currentHour();
 
-        $spreadsheet = $this->loadSpreadsheet($paths['output']);
-        $sheet       = $spreadsheet->getActiveSheet();
-        $hour        = (int)(new \DateTime())->format('H');
-        $date        = $paths['date'];
-        $serviceKey  = $this->config['service_key'];
+    if ($hour < 1) {                 // 00:30  вставляем утренние
+        $data = [
+            ':morning_trial' => $this->querySingle('active_trial', date('Y-m-d')),
+            ':morning_paid'  => $this->querySingle('active_paid' , date('Y-m-d')),
+        ];
+        $this->upsertReport($data, true);
 
-        if ($hour < 1) {
-            // 00:30 – активные подписки
-            $trialActive = $this->querySingle('active_trial', $date);
-            $paidActive  = $this->querySingle('active_paid', $date);
-            $sheet->setCellValue('A3', $date);
-            $sheet->setCellValue('B3', $serviceKey);
-            $sheet->setCellValue('C3', $trialActive);
-            $sheet->setCellValue('D3', $paidActive);
-            $sheet->setCellValue('E3', $trialActive + $paidActive);
+    } elseif ($hour == 8) {
+        $this->sendLast30();
 
-        } elseif ($hour < 9) {
-            // 08:00 – отправка отчёта
-            $paths = $this->getReportPaths(true);
-            $this->sendEmail($paths['output']);
-
-        } elseif ($hour <= 23) {
-            // 23:30 – итоговые метрики по ключам
-            
-            $keys = [
-                'new_trial', 'new_paid', 'trial_to_paid',
-                'active_trial_last_day', 'active_paid_last_day',
-                'billing_success_150', 'billing_success_100', 'billing_success_50',
-                'billing_fail', 'unsubscribe_trial', 'unsubscribe_paid',
-                'billing_success_sum',
-            ];
-            $col = 'F';
-            foreach ($keys as $key) {
-                if ($col == 'H'){$col++;}
-                $val = $this->querySingle($key, $date);
-                $sheet->setCellValue("{$col}3", $val);
-                $col++;
-            }
-        }
-
-        $this->saveSpreadsheet($spreadsheet, $paths['output']);
+    } elseif ($hour >= 23) {         // 23:30   вечерняя выборка
+        $d = date('Y-m-d');
+        $data = [
+            ':new_trial'      => $this->querySingle('new_trial', $d),
+            ':new_paid'       => $this->querySingle('new_paid', $d),
+            ':trial_to_paid'  => $this->querySingle('trial_to_paid',$d),
+            ':active_trial'   => $this->querySingle('active_trial_last_day',$d),
+            ':active_paid'    => $this->querySingle('active_paid_last_day',$d),
+            ':bill_150'       => $this->querySingle('billing_success_150',$d),
+            ':bill_100'       => $this->querySingle('billing_success_100',$d),
+            ':bill_50'        => $this->querySingle('billing_success_50',$d),
+            ':bill_fail'      => $this->querySingle('billing_fail',$d),
+            ':unsub_trial'    => $this->querySingle('unsubscribe_trial',$d),
+            ':unsub_paid'     => $this->querySingle('unsubscribe_paid',$d),
+            ':total_fee'      => $this->querySingle('billing_success_sum',$d),
+        ];
+        $this->upsertReport($data,false);
     }
+}
+
 }
