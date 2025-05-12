@@ -85,7 +85,7 @@ class ReportModule
     
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($data + [
-            ':dt' => date('Y-m-d 00:00:00'),
+            ':dt' => date('Y-m-d'),
             ':sk' => $this->config['service_key'],
         ]);
     }
@@ -93,7 +93,7 @@ class ReportModule
     {
         $rows = $this->pdo->query("
             SELECT * FROM FB_subscriptions_report_new
-            ORDER BY id DESC
+            ORDER BY report_dt DESC
             LIMIT 30
         ")->fetchAll();
 
