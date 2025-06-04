@@ -105,5 +105,12 @@ return [
     SELECT SUM( fee ) 
     FROM billing_success_log 
     WHERE DATE( date_time ) = :date;
+    ",
+    //from 'billing_success_log' number of unique msisdn
+    'unique_scharge_msisdn'=>"
+    SELECT COUNT(DISTINCT msisdn) AS unique_msisdn_count
+    FROM billing_success_log
+    WHERE DATE(date_time) = date;
     "
+
 ];

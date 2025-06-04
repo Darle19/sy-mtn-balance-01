@@ -70,7 +70,7 @@ class ReportModule
         $fieldsMorning = ['morning_trial','morning_paid'];
         $fieldsEvening = [
             'new_trial','new_paid','trial_to_paid','active_trial','active_paid',
-            'bill_150','bill_100','bill_50','bill_fail','unsub_trial','unsub_paid','total_fee'
+            'bill_150','bill_100','bill_50','bill_fail','unsub_trial','unsub_paid','total_fee','scharge_msisdn'
         ];
         $cols = $isMorning ? $fieldsMorning : $fieldsEvening;
     
@@ -124,9 +124,11 @@ class ReportModule
             $sheet->setCellValue("P$row",$r['unsub_trial']);
             $sheet->setCellValue("Q$row",$r['unsub_paid']);
             $sheet->setCellValue("R$row",$r['total_fee']);
+            $sheet->setCellValue("S$row",$r['scharge_msisdn']);
         }
         $this->saveSpreadsheet($sheet->getParent(), $paths['output']);
         $this->sendEmail($paths['output']);
+        $this->sendEmail($paths['output'], true);
     }
     public function querySingle(string $key, string $date): int
     {
@@ -143,7 +145,7 @@ class ReportModule
         // по умолчанию – реальное время сервера
         return (int) (new \DateTime())->format('H');
     }
-    private function sendEmail(string $file): void
+    private function sendEmail(string $file, bool $tor=false): void
     {
         
         $email = $this->config['email'];
@@ -162,15 +164,15 @@ class ReportModule
         $mail->setFrom($email['from']);
     
         // кому
-        
-        foreach ($email['to'] as $rcpt) {
+        if ($tor) {
+            foreach ($email['cc'] as $rcpt) {
                 $mail->addAddress($rcpt);
+            }
+        } else {
+            $mail->addAddress($email['to'][0]);
         }
-        foreach ($email['cc'] as $rcpt) {
-            $mail->addCC($rcpt);
-        }
-        
-    
+
+
         // тема и тело
         $date = (new \DateTime('yesterday'))->format($this->config['report']['date_fmt']);
         $mail->Subject  = str_replace('{date}', $date, $email['subject_tpl']);
@@ -218,6 +220,7 @@ class ReportModule
             ':unsub_trial'    => $this->querySingle('unsubscribe_trial',$d),
             ':unsub_paid'     => $this->querySingle('unsubscribe_paid',$d),
             ':total_fee'      => $this->querySingle('billing_success_sum',$d),
+            'scharge_msisdn' => $this->querySingle('unique_scharge_msisdn',$d)
         ];
         $this->upsertReport($data,false);
     }
