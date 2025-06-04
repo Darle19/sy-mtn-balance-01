@@ -3,30 +3,36 @@ return [
     // SQL-запросы для получения данных о подписках
     //Сбор информации в 00:30. Подсчет кол-ва подписок в триале из таблицы FB_subscriptions 
     'active_trial' => "
-    SELECT COUNT(*) 
+    SELECT(SELECT COUNT(*) 
+    FROM FB_subscriptions_archive
+    WHERE previous_status IN (0, 8)
+    AND DATE(trial_stop_date) > :date)
++(
+SELECT COUNT(*) 
     FROM FB_subscriptions
-    WHERE `status` IN (0, 8)
-    AND DATE(start_date) < :date;
+    WHERE previous_status IN (0, 8)
+    AND DATE(trial_stop_date) > :date);
   ",
     //Сбор информации в 00:30. Подсчет кол-ва платный подписок из таблицы FB_subscriptions 
     'active_paid' => "
         SELECT COUNT(*)
         FROM FB_subscriptions
-        WHERE `status` IN (1, 3, 5, 6)
+        WHERE `status` IN (1, 3, 5, 6)  
         AND DATE(start_date) < :date;
     ",
     // Сбор информации в 23:30. Подсчет кол-ва Новых подписок, что подписались на триал в рамках текущего дня. Данные собираем из таблицы FB_subscriptions и FB_subscriptions_archive
     'new_trial' => "
-    SELECT
-    (SELECT COUNT(*) FROM FB_subscriptions
-        WHERE status IN (0,8)
-        AND DATE(start_date) = :date
-    )
-    +
-    (SELECT COUNT(*) FROM FB_subscriptions_archive
-        WHERE status IN (0,8)
-        AND DATE(start_date) = :date
-    );
+        SELECT
+      (SELECT COUNT(*) FROM FB_subscriptions
+          WHERE status IN (0,8)
+          AND DATE(start_date) = :date
+          OR previous_status IN (0,8)
+          AND DATE(start_date) = :date
+      )
+      +
+      (SELECT COUNT(*) FROM FB_subscriptions_archive
+          WHERE previous_status IN (0,8)
+          AND DATE(start_date) = :date);
   ",
     // Сбор информации в 23:30. Подсчет кол-ва Новых подписок, что подписались на платную подписку в рамках текущего дня. Данные собираем из таблицы FB_subscriptions и FB_subscriptions_archive
     'new_paid' => "
@@ -37,7 +43,7 @@ return [
     )
     +
         (SELECT COUNT(*) FROM FB_subscriptions_archive
-        WHERE status IN (1,3,5,6)
+        WHERE previous_status IN (1,3,5,6)
         AND DATE(start_date) = :date);
   ",
     //Подсчёт кол-ва переведенных с триала в платную • current status (в FB_subscriptions) status IN (1,3,5,6) но в начале дня status был IN (0,8)
@@ -49,15 +55,22 @@ return [
     ",
     //Сбор информации в 23:30. Подсчет кол-ва подписок в триале из таблицы FB_subscriptions на конец дня
     'active_trial_last_day' => "
-      SELECT COUNT(*)
+      Select(SELECT COUNT(*)
       FROM FB_subscriptions
       WHERE status IN (0, 8)
+      AND DATE(start_date) <= :date)
+      +
+      (SELECT COUNT(*)
+      FROM FB_subscriptions_archive
+      WHERE DATE(start_date) > :date)
+      ;
     ",
     //Сбор информации в 23:30. Подсчет кол-ва платный подписок из таблицы FB_subscriptions на конец дня
     'active_paid_last_day' => "
     SELECT COUNT(*)
     FROM FB_subscriptions
-    WHERE status IN (1, 3, 5, 6);
+    WHERE status IN (1, 3, 5, 6)
+    AND DATE(start_date) <= :date;
     ",
     //Кол-во записей в billing_success_log по успешным списаниям за текущий день. сумма спиcания 150 SYP
     'billing_success_150' => "

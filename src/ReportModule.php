@@ -65,7 +65,7 @@ class ReportModule
         $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
         $writer->save($file);
     }
-    private function upsertReport(array $data, bool $isMorning): void
+    public function upsertReport(array $data, bool $isMorning): void
     {
         $fieldsMorning = ['morning_trial','morning_paid'];
         $fieldsEvening = [
@@ -85,16 +85,17 @@ class ReportModule
     
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($data + [
-            ':dt' => date('Y-m-d'),
+            ':dt' => method_exists($this,'today') ? $this->today() : date('Y-m-d'),
             ':sk' => $this->config['service_key'],
         ]);
     }
     private function sendLast30(): void
     {
+        
         $rows = $this->pdo->query("
             SELECT * FROM FB_subscriptions_report_new
             ORDER BY report_dt DESC
-            LIMIT 30
+            LIMIT  30 OFFSET 1;
         ")->fetchAll();
 
         // загружаем шаблон
@@ -127,7 +128,7 @@ class ReportModule
         $this->saveSpreadsheet($sheet->getParent(), $paths['output']);
         $this->sendEmail($paths['output']);
     }
-    private function querySingle(string $key, string $date): int
+    public function querySingle(string $key, string $date): int
     {
         $queries = require __DIR__ . '/../sql_queries.php';
         $sql     = $queries[$key];
@@ -161,9 +162,14 @@ class ReportModule
         $mail->setFrom($email['from']);
     
         // кому
+        
         foreach ($email['to'] as $rcpt) {
-            $mail->addAddress($rcpt);
+                $mail->addAddress($rcpt);
         }
+        foreach ($email['cc'] as $rcpt) {
+            $mail->addCC($rcpt);
+        }
+        
     
         // тема и тело
         $date = (new \DateTime('yesterday'))->format($this->config['report']['date_fmt']);
@@ -194,8 +200,11 @@ class ReportModule
     } elseif ($hour == 8) {
         $this->sendLast30();
 
-    } elseif ($hour >= 23) {         // 23:30   вечерняя выборка
-        $d = date('Y-m-d');
+
+    } elseif ($hour <= 23) {         // 23:30   вечерняя выборка
+        $d = method_exists($this,'today') ? $this->today() : date('Y-m-d');
+
+        
         $data = [
             ':new_trial'      => $this->querySingle('new_trial', $d),
             ':new_paid'       => $this->querySingle('new_paid', $d),
