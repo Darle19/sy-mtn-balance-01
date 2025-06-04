@@ -110,7 +110,7 @@ return [
     'unique_scharge_msisdn'=>"
     SELECT COUNT(DISTINCT msisdn) AS unique_msisdn_count
     FROM billing_success_log
-    WHERE DATE(date_time) = date;
+    WHERE DATE(date_time) = :date;
     "
 
 ];

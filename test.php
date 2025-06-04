@@ -13,7 +13,7 @@ use FBReport\ReportModule;
 $fakeHour = isset($argv[1]) ? (int)$argv[1] : null;
 $fakeDate = $argv[2] ?? date('Y-m-d');
 if (!in_array($fakeHour, [0, 8, 23], true)) {
-    exit("Usage: php test_cycle.php [0|8|23]\n");
+    exit("Usage: php test.php [0|8|23]\n");
 }
 
 // ????????? ??????
