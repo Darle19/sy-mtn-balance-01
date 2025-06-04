@@ -70,7 +70,7 @@ class ReportModule
         $fieldsMorning = ['morning_trial','morning_paid'];
         $fieldsEvening = [
             'new_trial','new_paid','trial_to_paid','active_trial','active_paid',
-            'bill_150','bill_100','bill_50','bill_fail','unsub_trial','unsub_paid','total_fee','scharge_msisdn'
+            'bill_150','bill_100','bill_50','scharge_msisdn','bill_fail','unsub_trial','unsub_paid','total_fee'
         ];
         $cols = $isMorning ? $fieldsMorning : $fieldsEvening;
     
@@ -120,11 +120,12 @@ class ReportModule
             $sheet->setCellValue("L$row",$r['bill_150']);
             $sheet->setCellValue("M$row",$r['bill_100']);
             $sheet->setCellValue("N$row",$r['bill_50']);
-            $sheet->setCellValue("O$row",$r['bill_fail']);
-            $sheet->setCellValue("P$row",$r['unsub_trial']);
-            $sheet->setCellValue("Q$row",$r['unsub_paid']);
-            $sheet->setCellValue("R$row",$r['total_fee']);
-            $sheet->setCellValue("S$row",$r['scharge_msisdn']);
+            $sheet->setCellValue("O$row",$r['scharge_msisdn']);
+            $sheet->setCellValue("P$row",$r['bill_fail']);
+            $sheet->setCellValue("Q$row",$r['unsub_trial']);
+            $sheet->setCellValue("R$row",$r['unsub_paid']);
+            $sheet->setCellValue("S$row",$r['total_fee']);
+            
         }
         $this->saveSpreadsheet($sheet->getParent(), $paths['output']);
         $this->sendEmail($paths['output']);
@@ -216,11 +217,11 @@ class ReportModule
             ':bill_150'       => $this->querySingle('billing_success_150',$d),
             ':bill_100'       => $this->querySingle('billing_success_100',$d),
             ':bill_50'        => $this->querySingle('billing_success_50',$d),
+            'scharge_msisdn' => $this->querySingle('unique_scharge_msisdn',$d),
             ':bill_fail'      => $this->querySingle('billing_fail',$d),
             ':unsub_trial'    => $this->querySingle('unsubscribe_trial',$d),
             ':unsub_paid'     => $this->querySingle('unsubscribe_paid',$d),
-            ':total_fee'      => $this->querySingle('billing_success_sum',$d),
-            'scharge_msisdn' => $this->querySingle('unique_scharge_msisdn',$d)
+            ':total_fee'      => $this->querySingle('billing_success_sum',$d)
         ];
         $this->upsertReport($data,false);
     }

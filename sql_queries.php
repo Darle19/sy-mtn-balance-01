@@ -77,6 +77,12 @@ return [
     FROM billing_success_log 
     WHERE fee=50 AND DATE(date_time)=:date;
     ",
+     //from 'billing_success_log' number of unique msisdn
+    'unique_scharge_msisdn'=>"
+    SELECT COUNT(DISTINCT msisdn) AS unique_msisdn_count
+    FROM billing_success_log
+    WHERE DATE(date_time) = :date;
+    ",
     //Кол-во записей в FB_Billing_transactions  по неуспешным списаниям за текущий день 
     'billing_fail' => "
     SELECT COUNT(*) 
@@ -105,12 +111,6 @@ return [
     SELECT SUM( fee ) 
     FROM billing_success_log 
     WHERE DATE( date_time ) = :date;
-    ",
-    //from 'billing_success_log' number of unique msisdn
-    'unique_scharge_msisdn'=>"
-    SELECT COUNT(DISTINCT msisdn) AS unique_msisdn_count
-    FROM billing_success_log
-    WHERE DATE(date_time) = :date;
-    "
+    "   
 
 ];
